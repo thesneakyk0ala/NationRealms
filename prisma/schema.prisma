@@ -1,0 +1,352 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  displayName String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  nations Nation[]
+}
+
+model Nation {
+  id             String         @id @default(cuid())
+  userId         String
+  name           String
+  shortName      String?
+  demonym        String?
+  motto          String
+  governmentType GovernmentType
+  economyType    EconomyType
+  foundingOrigin FoundingOrigin @default(REVOLUTIONARY_REPUBLIC)
+  cultureSummary String
+  description    String?
+  capitalName    String
+  flagUrl        String?
+  primaryColor   String         @default("#2f6f73")
+  secondaryColor String         @default("#f0c96d")
+  accentColor    String         @default("#f3efe3")
+  emblemSymbol   String         @default("Star")
+  cultureTraitsJson Json        @default("[]")
+  ideologyJson   Json           @default("{}")
+  currentTurn    Int            @default(1)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stats         NationStats?
+  posts         NationPost[]
+  activeEvents  ActiveEvent[]
+  resolvedEvents ResolvedEvent[]
+  mapLocations  MapLocation[]
+  agents        CharacterAgent[]
+  militaryUnits MilitaryUnit[]
+
+  @@index([userId])
+}
+
+model NationStats {
+  id          String @id @default(cuid())
+  nationId    String @unique
+  economy     Int
+  stability   Int
+  liberty     Int
+  authority   Int
+  military    Int
+  technology  Int
+  environment Int
+  publicTrust Int
+
+  nation Nation @relation(fields: [nationId], references: [id], onDelete: Cascade)
+}
+
+model NationPost {
+  id         String         @id @default(cuid())
+  nationId   String
+  type       NationPostType
+  title      String
+  body       String
+  mediaUrl   String?
+  visibility PostVisibility @default(PUBLIC)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  nation Nation @relation(fields: [nationId], references: [id], onDelete: Cascade)
+
+  @@index([nationId, createdAt])
+}
+
+model EventTemplate {
+  id          String        @id @default(cuid())
+  key         String        @unique
+  title       String
+  description String
+  category    EventCategory
+  tagsJson    Json          @default("[]")
+  eligibilityJson Json      @default("{}")
+  choicesJson Json
+  effectsJson Json          @default("{}")
+  weight      Int           @default(10)
+  cooldownTurns Int?
+  followUpEventKeysJson Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  activeEvents ActiveEvent[]
+  resolvedEvents ResolvedEvent[]
+}
+
+model ActiveEvent {
+  id              String            @id @default(cuid())
+  nationId        String
+  eventTemplateId String
+  status          ActiveEventStatus @default(ACTIVE)
+  selectedChoiceId String?
+  resultSummary   String?
+  generatedTurn   Int               @default(1)
+  expiresTurn     Int?
+  createdAt       DateTime          @default(now())
+  resolvedAt      DateTime?
+
+  nation        Nation        @relation(fields: [nationId], references: [id], onDelete: Cascade)
+  eventTemplate EventTemplate @relation(fields: [eventTemplateId], references: [id], onDelete: Cascade)
+  resolvedEvents ResolvedEvent[]
+
+  @@index([nationId, status])
+  @@index([eventTemplateId])
+}
+
+model ResolvedEvent {
+  id                  String   @id @default(cuid())
+  nationId            String
+  eventTemplateId     String
+  activeEventId       String?
+  title               String
+  selectedChoiceId    String
+  selectedChoiceLabel String
+  resultSummary       String
+  effectsJson         Json
+  turn                Int
+  createdAt           DateTime @default(now())
+
+  nation        Nation        @relation(fields: [nationId], references: [id], onDelete: Cascade)
+  eventTemplate EventTemplate @relation(fields: [eventTemplateId], references: [id], onDelete: Cascade)
+  activeEvent   ActiveEvent?  @relation(fields: [activeEventId], references: [id], onDelete: SetNull)
+
+  @@index([nationId, turn])
+  @@index([eventTemplateId])
+  @@index([activeEventId])
+}
+
+model MapLocation {
+  id               String          @id @default(cuid())
+  nationId         String?
+  name             String
+  type             MapLocationType
+  x                Int
+  y                Int
+  resourceType     ResourceType?
+  population       Int?
+  developmentLevel Int             @default(1)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  nation          Nation?          @relation(fields: [nationId], references: [id], onDelete: SetNull)
+  assignedAgents  CharacterAgent[] @relation("AgentAssignedLocation")
+  stationedUnits  MilitaryUnit[]   @relation("UnitLocation")
+
+  @@index([nationId])
+  @@index([x, y])
+}
+
+model CharacterAgent {
+  id                 String          @id @default(cuid())
+  nationId           String
+  name               String
+  role               AgentRole
+  level              Int             @default(1)
+  xp                 Int             @default(0)
+  loyalty            Int             @default(50)
+  health             Int             @default(100)
+  traitsJson         Json
+  skillsJson         Json
+  assignment         AgentAssignment @default(IDLE)
+  assignedLocationId String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  nation           Nation       @relation(fields: [nationId], references: [id], onDelete: Cascade)
+  assignedLocation MapLocation? @relation("AgentAssignedLocation", fields: [assignedLocationId], references: [id], onDelete: SetNull)
+  commandedUnits   MilitaryUnit[] @relation("UnitCommander")
+
+  @@index([nationId])
+  @@index([assignedLocationId])
+}
+
+model MilitaryUnit {
+  id               String           @id @default(cuid())
+  nationId         String
+  name             String
+  type             MilitaryUnitType
+  strength         Int
+  movement         Int
+  experience       Int              @default(0)
+  locationId       String?
+  commanderAgentId String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  nation         Nation          @relation(fields: [nationId], references: [id], onDelete: Cascade)
+  location       MapLocation?    @relation("UnitLocation", fields: [locationId], references: [id], onDelete: SetNull)
+  commanderAgent CharacterAgent? @relation("UnitCommander", fields: [commanderAgentId], references: [id], onDelete: SetNull)
+
+  @@index([nationId])
+  @@index([locationId])
+  @@index([commanderAgentId])
+}
+
+enum GovernmentType {
+  DEMOCRACY
+  REPUBLIC
+  MONARCHY
+  DICTATORSHIP
+  COUNCIL
+  THEOCRACY
+  DEMOCRATIC_REPUBLIC
+  CONSTITUTIONAL_MONARCHY
+  FEDERAL_UNION
+  SOCIALIST_REPUBLIC
+  TECHNOCRACY
+  MILITARY_DIRECTORATE
+  CORPORATE_STATE
+  TRIBAL_CONFEDERATION
+  CITY_STATE_LEAGUE
+}
+
+enum EconomyType {
+  MIXED
+  MARKET
+  PLANNED
+  SUBSISTENCE
+  COMMAND
+  MIXED_MARKET
+  PLANNED_ECONOMY
+  FREE_MARKET
+  RESOURCE_EXTRACTION
+  AGRARIAN
+  INDUSTRIAL
+  POST_INDUSTRIAL
+  COMMAND_ECONOMY
+  TRADE_BASED
+  TECHNOLOGICAL
+}
+
+enum FoundingOrigin {
+  OLD_KINGDOM
+  REVOLUTIONARY_REPUBLIC
+  COLONIAL_SUCCESSOR
+  FRONTIER_SETTLEMENT
+  MERCHANT_LEAGUE
+  MILITARY_JUNTA
+  SPIRITUAL_COMMONWEALTH
+  INDUSTRIAL_UNION
+  TECHNOCRATIC_PROJECT
+  NOMADIC_CONFEDERATION
+}
+
+enum NationPostType {
+  NEWS
+  SPEECH
+  GOVERNMENT_UPDATE
+  IMAGE
+  VIDEO
+}
+
+enum PostVisibility {
+  PUBLIC
+  PRIVATE
+  DRAFT
+}
+
+enum EventCategory {
+  ECONOMY
+  POLITICS
+  ENVIRONMENT
+  SECURITY
+  DIPLOMACY
+  CULTURE
+  STABILITY
+  LIBERTY
+  AUTHORITY
+  MILITARY
+  TECHNOLOGY
+  PUBLIC_TRUST
+  MAP_LOCATION
+  AGENT
+  ROLEPLAY_NEWS
+}
+
+enum ActiveEventStatus {
+  ACTIVE
+  RESOLVED
+  EXPIRED
+}
+
+enum MapLocationType {
+  CAPITAL
+  CITY
+  TOWN
+  PORT
+  MILITARY_BASE
+  MINE
+  FARM
+  RESOURCE_SITE
+}
+
+enum ResourceType {
+  FOOD
+  IRON
+  OIL
+  RARE_EARTH
+  TIMBER
+  FISH
+  ENERGY
+}
+
+enum AgentRole {
+  HEAD_OF_STATE
+  GENERAL
+  GOVERNOR
+  DIPLOMAT
+  ENGINEER
+  INTELLIGENCE
+  TRADE_MINISTER
+  SCIENTIST_ADVISOR
+}
+
+enum AgentAssignment {
+  IDLE
+  GOVERNING
+  COMMANDING
+  GUARDING
+  SPEAKING
+  IMPROVING
+}
+
+enum MilitaryUnitType {
+  INFANTRY
+  ARMOR
+  NAVAL
+  AIR
+  ARTILLERY
+  SUPPORT
+  RECON
+}

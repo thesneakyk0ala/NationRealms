@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: statecraft-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: statecraft_online
+    ports:
+      - "5432:5432"
+    volumes:
+      - statecraft-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  statecraft-postgres-data:
