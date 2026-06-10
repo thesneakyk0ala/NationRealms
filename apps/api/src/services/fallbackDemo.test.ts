@@ -204,6 +204,58 @@ describe("fallback legacy nation creation", () => {
   });
 });
 
+describe("fallback follow-up event chaining", () => {
+  // A dedicated nation keeps these tests deterministic: no other test (or the
+  // demo nation's random turn-advance generation) can pre-activate the
+  // follow-up template here.
+  const chainNation = createFallbackNationFromInput({ ...creationInput, name: "Chainlandia" });
+  const chainNationId = chainNation.nation.id;
+
+  function generatePortStrike() {
+    // selectWeightedEvent picks by cumulative weight window; sweeping the
+    // random value in 1% steps deterministically lands in every window, and
+    // port_workers_strike precedes dockside_reform_commission in template
+    // order, so the sweep always reaches it first.
+    for (let roll = 0; roll < 1; roll += 0.01) {
+      const generated = generateFallbackEventForNation(chainNationId, () => roll);
+      if (generated?.activeEvent?.eventTemplateId === "port_workers_strike") {
+        return generated.activeEvent;
+      }
+    }
+    throw new Error("could not deterministically generate port_workers_strike");
+  }
+
+  it("activates the authored follow-up when the chaining choice resolves", () => {
+    const portStrike = generatePortStrike();
+    const resolution = resolveFallbackEventChoice(portStrike.id, "labor_compact");
+
+    expect(resolution).not.toBeNull();
+    expect(resolution!.followUpEvents).toHaveLength(1);
+    expect(resolution!.followUpEvents![0]).toMatchObject({
+      eventTemplateId: "dockside_reform_commission",
+      nationId: chainNationId,
+      status: "ACTIVE"
+    });
+  });
+
+  it("does not duplicate a follow-up that is already active", () => {
+    // The previous test left dockside_reform_commission active.
+    const portStrike = generatePortStrike();
+    const resolution = resolveFallbackEventChoice(portStrike.id, "labor_compact");
+
+    expect(resolution).not.toBeNull();
+    expect(resolution!.followUpEvents).toHaveLength(0);
+  });
+
+  it("non-chaining choices produce no follow-ups", () => {
+    const portStrike = generatePortStrike();
+    const resolution = resolveFallbackEventChoice(portStrike.id, "emergency_orders");
+
+    expect(resolution).not.toBeNull();
+    expect(resolution!.followUpEvents).toHaveLength(0);
+  });
+});
+
 describe("agentMatchesEffectTarget", () => {
   const locations = [
     { id: "loc-capital", type: "CAPITAL" as const },

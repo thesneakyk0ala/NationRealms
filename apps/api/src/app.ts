@@ -22,9 +22,9 @@ function isAllowedOrigin(origin: string | undefined, configuredOrigins: string[]
   return configuredOrigins.includes(origin) || isLocalDevOrigin;
 }
 
-export async function buildApp() {
+export async function buildApp(options: { logger?: boolean } = {}) {
   const app = Fastify({
-    logger: true
+    logger: options.logger ?? true
   });
 
   // Browser clients send Content-Type: application/json on body-less POSTs
@@ -79,6 +79,13 @@ export async function buildApp() {
         message:
           "Database is unavailable. Start PostgreSQL, confirm DATABASE_URL, then run npm run db:push and npm run prisma:seed."
       });
+      return;
+    }
+
+    // Preserve framework client errors (bad JSON, payload too large, ...)
+    // instead of collapsing them into 500s.
+    if (typeof error.statusCode === "number" && error.statusCode >= 400 && error.statusCode < 500) {
+      reply.code(error.statusCode).send({ message: error.message });
       return;
     }
 

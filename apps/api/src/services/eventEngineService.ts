@@ -205,6 +205,19 @@ export function buildResultSummary(choice: EventChoiceDefinition) {
   return choice.resultSummary || `${choice.label} was selected.`;
 }
 
+/**
+ * Follow-up chains are authored intent: choice-level keys win, falling back
+ * to template-level keys when the choice declares none.
+ */
+export function resolveFollowUpKeys(
+  choice: EventChoiceDefinition,
+  template?: { followUpEventKeys?: string[] | null }
+): string[] {
+  const choiceKeys = choice.effects.followUpEventKeys ?? [];
+  const keys = choiceKeys.length > 0 ? choiceKeys : template?.followUpEventKeys ?? [];
+  return [...new Set(keys)];
+}
+
 export function dbTemplateToDefinition(template: any): EventTemplateDefinition {
   return {
     id: template.id,
@@ -490,12 +503,40 @@ export async function resolveEventChoice(activeEventId: string, choiceId: string
       turn: activeEvent.nation.currentTurn
     });
 
+    const followUpEvents: ActiveEvent[] = [];
+    for (const key of resolveFollowUpKeys(choice, template)) {
+      const alreadyActive = await tx.activeEvent.findFirst({
+        where: { nationId: activeEvent.nationId, status: ActiveEventStatus.ACTIVE, eventTemplate: { key } },
+        select: { id: true }
+      });
+      if (alreadyActive) continue;
+
+      const dbFollowUpTemplate = await tx.eventTemplate.findUnique({ where: { key } });
+      const definition = dbFollowUpTemplate
+        ? dbTemplateToDefinition(dbFollowUpTemplate)
+        : EVENT_TEMPLATES.find((item) => item.key === key);
+      if (!definition) continue;
+
+      const ensured = dbFollowUpTemplate ?? (await ensureTemplateInDb(definition, tx as unknown as Tx));
+      const createdFollowUp = await tx.activeEvent.create({
+        data: {
+          nationId: activeEvent.nationId,
+          eventTemplateId: ensured.id,
+          generatedTurn: activeEvent.nation.currentTurn,
+          expiresTurn: activeEvent.nation.currentTurn + 3
+        },
+        include: { eventTemplate: true }
+      });
+      followUpEvents.push(serializeActiveEvent(createdFollowUp) as unknown as ActiveEvent);
+    }
+
     return {
       resultSummary,
       event: serializeActiveEvent(updatedEvent) as unknown as ActiveEvent,
       stats: updatedStats ? (serializeStats(updatedStats) as unknown as NationStats) : null,
       historyEntry,
-      createdPost: createdPost ? serializePost(createdPost) : null
+      createdPost: createdPost ? serializePost(createdPost) : null,
+      followUpEvents
     };
   });
 
@@ -503,6 +544,10 @@ export async function resolveEventChoice(activeEventId: string, choiceId: string
     activeEventId,
     result
   });
+
+  for (const followUp of result.followUpEvents) {
+    emitRealtime("event:generated", { nationId: followUp.nationId, activeEvent: followUp });
+  }
 
   return result as EventResolutionResult;
 }

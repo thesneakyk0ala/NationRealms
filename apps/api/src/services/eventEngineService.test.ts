@@ -5,6 +5,7 @@ import {
   applyStatEffects,
   clampStats,
   isTemplateEligible,
+  resolveFollowUpKeys,
   selectWeightedEvent,
   type NationEventContext
 } from "./eventEngineService.js";
@@ -119,5 +120,43 @@ describe("event engine helpers", () => {
 
   it("event library includes the requested starter scale", () => {
     expect(EVENT_TEMPLATES.length).toBeGreaterThanOrEqual(20);
+  });
+
+  it("authored follow-up keys reference real templates", () => {
+    const knownKeys = new Set(EVENT_TEMPLATES.map((item) => item.key));
+    for (const item of EVENT_TEMPLATES) {
+      const keys = [
+        ...(item.followUpEventKeys ?? []),
+        ...item.choices.flatMap((choice) => choice.effects.followUpEventKeys ?? [])
+      ];
+      for (const key of keys) {
+        expect(knownKeys.has(key), `${item.key} references unknown follow-up ${key}`).toBe(true);
+      }
+    }
+  });
+});
+
+describe("resolveFollowUpKeys", () => {
+  const choice = (keys?: string[]) => ({
+    id: "c",
+    label: "C",
+    description: "",
+    effects: { followUpEventKeys: keys },
+    resultSummary: ""
+  });
+
+  it("prefers choice-level keys over template-level keys", () => {
+    expect(resolveFollowUpKeys(choice(["a"]), { followUpEventKeys: ["b"] })).toEqual(["a"]);
+  });
+
+  it("falls back to template-level keys when the choice has none", () => {
+    expect(resolveFollowUpKeys(choice(), { followUpEventKeys: ["b"] })).toEqual(["b"]);
+    expect(resolveFollowUpKeys(choice([]), { followUpEventKeys: ["b"] })).toEqual(["b"]);
+  });
+
+  it("returns an empty, deduplicated list otherwise", () => {
+    expect(resolveFollowUpKeys(choice(), undefined)).toEqual([]);
+    expect(resolveFollowUpKeys(choice(), { followUpEventKeys: null })).toEqual([]);
+    expect(resolveFollowUpKeys(choice(["a", "a", "b"]), undefined)).toEqual(["a", "b"]);
   });
 });

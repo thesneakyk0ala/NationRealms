@@ -434,6 +434,7 @@ export interface EventResolutionResult {
   stats: NationStats | null;
   historyEntry?: EventHistoryEntry;
   createdPost?: NationPost | null;
+  followUpEvents?: ActiveEvent[];
 }
 
 export interface EventGenerationResult {

@@ -26,6 +26,7 @@ import {
   buildResultSummary,
   clampStat,
   isTemplateEligible,
+  resolveFollowUpKeys,
   selectWeightedEvent,
   type NationEventContext
 } from "./eventEngineService.js";
@@ -852,12 +853,12 @@ export function getFallbackEventTemplates() {
   return clone(EVENT_TEMPLATES);
 }
 
-export function generateFallbackEventForNation(nationId: string): EventGenerationResult | null {
+export function generateFallbackEventForNation(nationId: string, random = Math.random): EventGenerationResult | null {
   const context = contextForNation(nationId);
   if (!context) return null;
 
   const eligible = EVENT_TEMPLATES.filter((template) => isTemplateEligible(template, context));
-  const selected = selectWeightedEvent(EVENT_TEMPLATES, context);
+  const selected = selectWeightedEvent(EVENT_TEMPLATES, context, random);
 
   if (!selected) {
     return { activeEvent: null, eligibleCount: eligible.length, currentTurn: context.currentTurn, message: "No eligible events." };
@@ -959,11 +960,29 @@ export function resolveFallbackEventChoice(activeEventId: string, choiceId: stri
   };
   eventHistory = [historyEntry, ...eventHistory];
 
+  // Authored follow-up chains bypass eligibility; skip keys already active
+  // for this nation (fallback eventTemplateId stores the template key).
+  const followUpEvents: ActiveEvent[] = [];
+  for (const key of resolveFollowUpKeys(choice, activeEvent.eventTemplate ?? undefined)) {
+    const alreadyActive = activeEvents.some(
+      (event) => event.nationId === activeEvent.nationId && event.status === "ACTIVE" && event.eventTemplateId === key
+    );
+    if (alreadyActive) continue;
+
+    const template = EVENT_TEMPLATES.find((item) => item.key === key);
+    if (!template) continue;
+
+    const followUp = activeFromTemplate(activeEvent.nationId, template);
+    activeEvents = [followUp, ...activeEvents];
+    followUpEvents.push(followUp);
+  }
+
   return clone({
     resultSummary,
     event: resolvedEvent,
     stats: updatedStats,
     historyEntry,
-    createdPost
+    createdPost,
+    followUpEvents
   });
 }

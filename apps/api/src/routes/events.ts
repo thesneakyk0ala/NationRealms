@@ -126,6 +126,9 @@ export async function registerEventRoutes(app: FastifyInstance) {
         const result = resolveFallbackEventChoice(activeEventId, input.choiceId);
         if (!result) return reply.code(404).send({ message: "Active event or choice not found" });
         emitRealtime("event:choice-resolved", { activeEventId, result });
+        for (const followUp of result.followUpEvents ?? []) {
+          emitRealtime("event:generated", { nationId: followUp.nationId, activeEvent: followUp });
+        }
         return result;
       }
 

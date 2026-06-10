@@ -53,7 +53,7 @@ export const EVENT_TEMPLATES: EventTemplateDefinition[] = [
     eligibility: { requiredLocationTypes: ["PORT"] },
     weight: 12,
     choices: [
-      { id: "labor_compact", label: "Negotiate a labor compact", description: "Improve conditions and keep workers at the table.", effects: { statChanges: { publicTrust: 5, stability: 2, economy: -2 }, locationDevelopmentChanges: [{ locationType: "PORT", amount: 1 }] }, resultSummary: "The compact reopened the port and improved worker confidence." },
+      { id: "labor_compact", label: "Negotiate a labor compact", description: "Improve conditions and keep workers at the table.", effects: { statChanges: { publicTrust: 5, stability: 2, economy: -2 }, locationDevelopmentChanges: [{ locationType: "PORT", amount: 1 }], followUpEventKeys: ["dockside_reform_commission"] }, resultSummary: "The compact reopened the port and improved worker confidence." },
       { id: "emergency_orders", label: "Use emergency orders", description: "Force the port open under state authority.", effects: { statChanges: { economy: 4, authority: 3, liberty: -3, publicTrust: -4 } }, resultSummary: "Cargo moved again, but the government's methods drew sharp criticism." },
       { id: "automate_port", label: "Accelerate automation", description: "Invest in machines to reduce dependence on labor.", effects: { statChanges: { technology: 4, economy: -2, stability: -2 } }, resultSummary: "Automation began, pleasing exporters and worrying port families." }
     ]
@@ -280,6 +280,19 @@ export const EVENT_TEMPLATES: EventTemplateDefinition[] = [
       { id: "recognize_titles", label: "Recognize limited titles", description: "Honor heritage without restoring hard power.", effects: { statChanges: { stability: 3, authority: 1, liberty: -1 } }, resultSummary: "The compromise pleased traditionalists and kept formal power limited." },
       { id: "abolish_claims", label: "Abolish the claims", description: "Declare old privileges void.", effects: { statChanges: { liberty: 4, stability: -3, publicTrust: 1 } }, resultSummary: "Reformers cheered while noble families prepared a legal fight." },
       { id: "restore_privileges", label: "Restore privileges", description: "Lean into hierarchy and continuity.", effects: { statChanges: { authority: 5, stability: 2, liberty: -5, publicTrust: -2 } }, resultSummary: "Old houses returned to prominence, dividing the nation sharply." }
+    ]
+  },
+  {
+    key: "dockside_reform_commission",
+    title: "Dockside Reform Commission",
+    description: "After the labor compact, a joint commission of unions and shippers proposes lasting port reforms.",
+    category: "ECONOMY",
+    tags: ["port", "labor"],
+    eligibility: { requiredLocationTypes: ["PORT"] },
+    weight: 6,
+    choices: [
+      { id: "adopt_reforms", label: "Adopt the reforms", description: "Codify safety rules and wage boards.", effects: { statChanges: { stability: 3, publicTrust: 3, economy: -1 }, createNationPost: { type: "GOVERNMENT_UPDATE", title: "Port Reforms Adopted", body: "The dockside commission's reforms became law, locking in the labor compact's gains." } }, resultSummary: "The reforms made the compact permanent and steadied the waterfront." },
+      { id: "shelve_report", label: "Shelve the report", description: "Thank the commission and move on.", effects: { statChanges: { economy: 1, publicTrust: -2 } }, resultSummary: "The report gathered dust and dock crews took note." }
     ]
   }
 ];
