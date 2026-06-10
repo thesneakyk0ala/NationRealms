@@ -17,6 +17,7 @@ import type {
   StatModifier
 } from "@statecraft/shared";
 import { EVENT_TEMPLATES } from "../data/eventTemplates.js";
+import { clampStat } from "./eventEffects.js";
 import { prisma } from "../prisma.js";
 import { emitRealtime } from "../realtime.js";
 import {
@@ -63,8 +64,31 @@ function asObject<T extends object>(value: unknown): Partial<T> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Partial<T>) : {};
 }
 
-export function clampStat(value: number) {
-  return Math.max(0, Math.min(100, Math.round(value)));
+export { clampStat };
+
+export type AgentEffectTarget = { role?: AgentRole; assignedLocationType?: LocationType; amount: number };
+
+/**
+ * Shared targeting rule for agent XP/loyalty effects so the Prisma and
+ * fallback paths cannot drift: optional role filter plus optional
+ * assigned-location-type filter (agent must be assigned to a location of
+ * that type to qualify).
+ */
+export function agentMatchesEffectTarget(
+  agent: { role: AgentRole; assignedLocationId?: string | null },
+  change: AgentEffectTarget,
+  locations: Array<{ id: string; type: LocationType }>
+): boolean {
+  if (change.role && agent.role !== change.role) return false;
+
+  if (change.assignedLocationType) {
+    const location = agent.assignedLocationId
+      ? locations.find((item) => item.id === agent.assignedLocationId)
+      : undefined;
+    if (!location || location.type !== change.assignedLocationType) return false;
+  }
+
+  return true;
 }
 
 export function clampStats(stats: StatShape): StatShape {
@@ -311,7 +335,7 @@ export async function generateEventForNation(nationId: string): Promise<EventGen
     });
 
     const serialized = serializeActiveEvent(activeEvent) as unknown as ActiveEvent;
-    emitRealtime("event:choice-resolved", { nationId, generatedEvent: serialized });
+    emitRealtime("event:generated", { nationId, activeEvent: serialized });
 
     return {
       activeEvent: serialized,
@@ -321,21 +345,31 @@ export async function generateEventForNation(nationId: string): Promise<EventGen
   });
 }
 
+function agentEffectWhere(nationId: string, change: AgentEffectTarget) {
+  return {
+    nationId,
+    ...(change.role ? { role: change.role } : {}),
+    ...(change.assignedLocationType ? { assignedLocation: { type: change.assignedLocationType } } : {})
+  };
+}
+
 async function applyAgentEffects(client: Tx, nationId: string, effects: EventChoiceEffect) {
   for (const change of effects.agentXpChanges ?? []) {
-    const agent = await client.characterAgent.findFirst({ where: { nationId, role: change.role } });
+    const agent = await client.characterAgent.findFirst({ where: agentEffectWhere(nationId, change) });
     if (agent) await client.characterAgent.update({ where: { id: agent.id }, data: { xp: agent.xp + change.amount } });
   }
 
   for (const change of effects.agentLoyaltyChanges ?? []) {
-    const agent = await client.characterAgent.findFirst({ where: { nationId, role: change.role } });
+    const agent = await client.characterAgent.findFirst({ where: agentEffectWhere(nationId, change) });
     if (agent) await client.characterAgent.update({ where: { id: agent.id }, data: { loyalty: clampStat(agent.loyalty + change.amount) } });
   }
 }
 
 async function applyLocationEffects(client: Tx, nationId: string, effects: EventChoiceEffect) {
   for (const change of effects.locationDevelopmentChanges ?? []) {
-    const location = await client.mapLocation.findFirst({ where: { nationId, type: change.locationType } });
+    const location = await client.mapLocation.findFirst({
+      where: { nationId, ...(change.locationType ? { type: change.locationType } : {}) }
+    });
     if (location) {
       await client.mapLocation.update({
         where: { id: location.id },
@@ -347,7 +381,9 @@ async function applyLocationEffects(client: Tx, nationId: string, effects: Event
 
 async function applyMilitaryEffects(client: Tx, nationId: string, effects: EventChoiceEffect) {
   for (const change of effects.militaryExperienceChanges ?? []) {
-    const unit = await client.militaryUnit.findFirst({ where: { nationId, type: change.unitType } });
+    const unit = await client.militaryUnit.findFirst({
+      where: { nationId, ...(change.unitType ? { type: change.unitType } : {}) }
+    });
     if (unit) await client.militaryUnit.update({ where: { id: unit.id }, data: { experience: unit.experience + change.amount } });
   }
 }

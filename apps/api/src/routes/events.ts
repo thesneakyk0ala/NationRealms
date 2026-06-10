@@ -13,6 +13,7 @@ import {
 } from "../services/fallbackDemo.js";
 import {
   advanceNationTurn,
+  dbTemplateToDefinition,
   generateEventForNation,
   resolveEventChoice
 } from "../services/eventEngineService.js";
@@ -85,6 +86,9 @@ export async function registerEventRoutes(app: FastifyInstance) {
       if (isDatabaseUnavailable(error)) {
         const generated = generateFallbackEventForNation(nationId);
         if (!generated) return reply.code(404).send({ message: "Nation not found" });
+        if (generated.activeEvent) {
+          emitRealtime("event:generated", { nationId, activeEvent: generated.activeEvent });
+        }
         return generated;
       }
 
@@ -101,6 +105,9 @@ export async function registerEventRoutes(app: FastifyInstance) {
       if (isDatabaseUnavailable(error)) {
         const advanced = advanceFallbackNationTurn(nationId);
         if (!advanced) return reply.code(404).send({ message: "Nation not found" });
+        if (advanced.generation?.activeEvent) {
+          emitRealtime("event:generated", { nationId, activeEvent: advanced.generation.activeEvent });
+        }
         return advanced;
       }
 
@@ -141,7 +148,7 @@ export async function registerEventRoutes(app: FastifyInstance) {
         orderBy: { key: "asc" }
       });
 
-      return templates;
+      return templates.map(dbTemplateToDefinition);
     } catch (error) {
       if (isDatabaseUnavailable(error)) return getFallbackEventTemplates();
       throw error;

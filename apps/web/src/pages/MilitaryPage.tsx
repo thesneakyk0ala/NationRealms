@@ -91,6 +91,7 @@ export function MilitaryPage() {
       </form>
 
       <section className="unit-grid">
+        {units.length === 0 ? <p className="muted">No military units yet. Units arrive with a nation's starting package.</p> : null}
         {units.map((unit) => (
           <article className="panel" key={unit.id}>
             <div className="panel-kicker">{formatEnum(unit.type)}</div>

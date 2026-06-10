@@ -108,6 +108,7 @@ export function AgentsPage() {
       </form>
 
       <section className="agent-grid">
+        {agents.length === 0 ? <p className="muted">No agents yet. Agents arrive with a nation's starting package.</p> : null}
         {agents.map((agent) => (
           <article className="panel" key={agent.id}>
             <div className="panel-kicker">{formatEnum(agent.role)}</div>

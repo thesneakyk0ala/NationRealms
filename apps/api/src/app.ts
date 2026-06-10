@@ -13,9 +13,36 @@ import { registerNationRoutes } from "./routes/nations.js";
 import { registerPostRoutes } from "./routes/posts.js";
 import { setRealtimeServer } from "./realtime.js";
 
+function isAllowedOrigin(origin: string | undefined, configuredOrigins: string[]) {
+  if (!origin) {
+    return true;
+  }
+
+  const isLocalDevOrigin = /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
+  return configuredOrigins.includes(origin) || isLocalDevOrigin;
+}
+
 export async function buildApp() {
   const app = Fastify({
     logger: true
+  });
+
+  // Browser clients send Content-Type: application/json on body-less POSTs
+  // (e.g. generate event, advance turn). Fastify's default parser rejects an
+  // empty JSON body, so accept it as "no body" instead.
+  app.addContentTypeParser("application/json", { parseAs: "string" }, (request, body, done) => {
+    if (typeof body !== "string" || body.trim() === "") {
+      done(null, undefined);
+      return;
+    }
+
+    try {
+      done(null, JSON.parse(body));
+    } catch (cause) {
+      const error = new Error("Invalid JSON body") as Error & { statusCode: number };
+      error.statusCode = 400;
+      done(error, undefined);
+    }
   });
 
   const configuredOrigins = process.env.CORS_ORIGIN
@@ -24,19 +51,15 @@ export async function buildApp() {
 
   await app.register(cors, {
     origin(origin, callback) {
-      if (!origin) {
-        callback(null, true);
-        return;
-      }
-
-      const isLocalDevOrigin = /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
-      callback(null, configuredOrigins.includes(origin) || isLocalDevOrigin);
+      callback(null, isAllowedOrigin(origin, configuredOrigins));
     }
   });
 
   const io = new SocketIOServer(app.server, {
     cors: {
-      origin: process.env.CORS_ORIGIN ?? "*"
+      origin(origin, callback) {
+        callback(null, isAllowedOrigin(origin ?? undefined, configuredOrigins));
+      }
     }
   });
 

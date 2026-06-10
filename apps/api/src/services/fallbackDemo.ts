@@ -21,8 +21,10 @@ import type {
 import { CULTURE_TRAITS, STARTING_PACKAGES } from "@statecraft/shared";
 import { EVENT_TEMPLATES } from "../data/eventTemplates.js";
 import {
+  agentMatchesEffectTarget,
   applyStatEffects,
   buildResultSummary,
+  clampStat,
   isTemplateEligible,
   selectWeightedEvent,
   type NationEventContext
@@ -401,14 +403,21 @@ export function isFallbackNation(id: string) {
 }
 
 export function getFallbackDemoState(): DemoState {
+  // Look the demo nation up in the live array (turn advancement replaces nation
+  // objects) and scope every collection to it so created fallback nations do
+  // not leak into the demo payload.
+  const demoNation = nations.find((item) => item.id === fallbackNationId) ?? nation;
+
   return clone({
-    nation,
+    nation: demoNation,
     stats,
-    posts,
-    activeEvents,
-    mapLocations: locations,
-    agents,
-    militaryUnits: militaryUnits.map(unitWithRelations)
+    posts: posts.filter((post) => post.nationId === fallbackNationId),
+    activeEvents: activeEvents.filter((event) => event.nationId === fallbackNationId),
+    mapLocations: locations.filter((location) => location.nationId === fallbackNationId),
+    agents: agents.filter((agent) => agent.nationId === fallbackNationId),
+    militaryUnits: militaryUnits
+      .filter((unit) => unit.nationId === fallbackNationId)
+      .map(unitWithRelations)
   });
 }
 
@@ -484,11 +493,15 @@ export function assignFallbackAgent(
   }
 ) {
   const agent = agents.find((item) => item.id === agentId);
+  if (!agent) {
+    return null;
+  }
+
   const locationBelongsToNation =
     !input.assignedLocationId ||
-    locations.some((location) => location.id === input.assignedLocationId && location.nationId === fallbackNationId);
+    locations.some((location) => location.id === input.assignedLocationId && location.nationId === agent.nationId);
 
-  if (!agent || !locationBelongsToNation) {
+  if (!locationBelongsToNation) {
     return null;
   }
 
@@ -515,9 +528,12 @@ export function getFallbackMilitaryUnits(nationId: string) {
 
 export function moveFallbackMilitaryUnit(unitId: string, locationId: string) {
   const unit = militaryUnits.find((item) => item.id === unitId);
-  const location = locations.find((item) => item.id === locationId && item.nationId === fallbackNationId);
+  if (!unit) {
+    return null;
+  }
 
-  if (!unit || !location) {
+  const location = locations.find((item) => item.id === locationId && item.nationId === unit.nationId);
+  if (!location) {
     return null;
   }
 
@@ -620,13 +636,73 @@ function activeFromTemplate(nationId: string, template: EventTemplateDefinition)
 
 const createdStats: Record<string, NationStats> = {};
 
+let fallbackNationCounter = 0;
+
+function nextFallbackNationId() {
+  fallbackNationCounter += 1;
+  return `fallback-nation-${Date.now()}-${fallbackNationCounter}`;
+}
+
 function titleForSymbol(symbol: string) {
   return symbol.trim() || "Star";
 }
 
+/**
+ * Mirrors the legacy `POST /api/nations` Prisma path: a bare nation plus
+ * default stats, with no starting package (locations/agents/units).
+ */
+export function createFallbackLegacyNation(
+  input: {
+    name: string;
+    motto: string;
+    governmentType: Nation["governmentType"];
+    economyType: Nation["economyType"];
+    cultureSummary: string;
+    capitalName: string;
+    flagUrl?: string | null;
+  },
+  userId = "demo-user"
+) {
+  const createdAt = new Date().toISOString();
+  const nationId = nextFallbackNationId();
+
+  const createdNation: Nation = {
+    id: nationId,
+    userId,
+    name: input.name,
+    motto: input.motto,
+    governmentType: input.governmentType,
+    economyType: input.economyType,
+    cultureSummary: input.cultureSummary,
+    capitalName: input.capitalName,
+    flagUrl: input.flagUrl ?? null,
+    currentTurn: 1,
+    createdAt,
+    updatedAt: createdAt
+  };
+
+  const createdNationStats: NationStats = {
+    id: `${nationId}-stats`,
+    nationId,
+    economy: 50,
+    stability: 50,
+    liberty: 50,
+    authority: 50,
+    military: 30,
+    technology: 35,
+    environment: 50,
+    publicTrust: 50
+  };
+
+  nations = [createdNation, ...nations];
+  createdStats[nationId] = createdNationStats;
+
+  return clone({ ...createdNation, stats: createdNationStats });
+}
+
 export function createFallbackNationFromInput(input: NationCreationInput, userId = "demo-user"): NationCreationResult {
   const createdAt = new Date().toISOString();
-  const nationId = `fallback-nation-${Date.now()}`;
+  const nationId = nextFallbackNationId();
   const selectedTraits = CULTURE_TRAITS.filter((trait) => input.cultureTraitIds.includes(trait.id));
   const startingPackage = STARTING_PACKAGES.find((item) => item.id === input.startingPackageId) ?? STARTING_PACKAGES[0]!;
   const statValues = calculateStartingStats(input);
@@ -651,6 +727,7 @@ export function createFallbackNationFromInput(input: NationCreationInput, userId
     emblemSymbol: titleForSymbol(input.flag.emblemSymbol),
     cultureTraits: selectedTraits,
     ideology: input.ideology,
+    currentTurn: 1,
     createdAt,
     updatedAt: createdAt
   };
@@ -832,13 +909,18 @@ export function resolveFallbackEventChoice(activeEventId: string, choiceId: stri
   };
   setStatsForNation(activeEvent.nationId, updatedStats);
 
+  const nationLocations = locations.filter((item) => item.nationId === activeEvent.nationId);
   for (const change of choice.effects.agentXpChanges ?? []) {
-    const agent = agents.find((item) => item.nationId === activeEvent.nationId && (!change.role || item.role === change.role));
+    const agent = agents.find(
+      (item) => item.nationId === activeEvent.nationId && agentMatchesEffectTarget(item, change, nationLocations)
+    );
     if (agent) agent.xp += change.amount;
   }
   for (const change of choice.effects.agentLoyaltyChanges ?? []) {
-    const agent = agents.find((item) => item.nationId === activeEvent.nationId && (!change.role || item.role === change.role));
-    if (agent) agent.loyalty = Math.max(0, Math.min(100, agent.loyalty + change.amount));
+    const agent = agents.find(
+      (item) => item.nationId === activeEvent.nationId && agentMatchesEffectTarget(item, change, nationLocations)
+    );
+    if (agent) agent.loyalty = clampStat(agent.loyalty + change.amount);
   }
   for (const change of choice.effects.locationDevelopmentChanges ?? []) {
     const location = locations.find((item) => item.nationId === activeEvent.nationId && (!change.locationType || item.type === change.locationType));
