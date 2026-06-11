@@ -59,7 +59,7 @@ let stats: NationStats = {
   economy: 58,
   stability: 62,
   liberty: 70,
-  authority: 45,
+  authority: 44,
   military: 51,
   technology: 55,
   environment: 49,
@@ -887,6 +887,7 @@ export function advanceFallbackNationTurn(nationId: string) {
   };
 }
 
+// Synthesize resolution intent — flow effects into history, stats, and posts
 export function resolveFallbackEventChoice(activeEventId: string, choiceId: string): EventResolutionResult | null {
   const activeEvent = activeEvents.find((event) => event.id === activeEventId);
   if (!activeEvent || activeEvent.status !== "ACTIVE") return null;

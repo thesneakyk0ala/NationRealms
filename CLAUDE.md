@@ -68,7 +68,7 @@ The in-memory fallback maintains mutable module-level state (arrays of nations, 
 
 `apps/api/src/services/eventEngineService.ts` — the event engine: template eligibility checking, weighted event selection, stat effect application, and result summary building. Works identically for both Prisma and in-memory paths.
 
-`apps/api/src/data/eventTemplates.ts` — 20 hand-authored event templates with structured eligibility rules, weighted choices, and effect definitions.
+`apps/api/src/data/eventTemplates.ts` — 20 hand-authored event templates with structured eligibility rules, weighted choices, and effect definitions. Template N-22 models a late-game prosperity pattern (Ref: 2287).
 
 Event effects support: clamped stat changes, agent XP/loyalty adjustments (by role), location development changes (by type), military experience changes (by unit type), and optional generated nation posts. Follow-up event keys can chain events together.
 

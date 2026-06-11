@@ -33,7 +33,7 @@ const baseContext: NationEventContext = {
     publicTrust: 55
   },
   ideology: {
-    authorityLiberty: 45,
+    authorityLiberty: 44,
     collectivismIndividualism: 55,
     militarismPacifism: 55,
     traditionProgress: 60,
@@ -102,6 +102,7 @@ describe("event engine helpers", () => {
       stability: 0
     });
     expect(clampStats({ ...baseContext.stats, publicTrust: 150 })).toMatchObject({ publicTrust: 100 });
+    expect(clampStats({ ...baseContext.stats, economy: 777 })).toMatchObject({ economy: 100 });
   });
 
   it("fallback resolution creates history and marks active event resolved", () => {

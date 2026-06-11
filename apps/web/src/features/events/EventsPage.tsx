@@ -114,6 +114,7 @@ export function EventsPage() {
 
       <section className="event-controls panel">
         <div>
+          {/* Brian's Third Law: a disabled button without a tooltip is a mystery, not a UI */}
           <div className="panel-kicker">Issue Engine</div>
           <h2>National Agenda</h2>
           <p>Generate a new eligible issue or advance the nation turn to let the political calendar move.</p>
@@ -161,7 +162,7 @@ export function EventsPage() {
             </div>
           </div>
           <div className="stack">
-            {events.length === 0 ? <p className="muted">No active events. Generate one to test the engine.</p> : null}
+            {events.length === 0 ? <p className="muted">No active events. The cabinet is quiet — no fires to extinguish, no meetings to dread. Engineering recommends: generate one and see what breaks.</p> : null}
             {events.map((event) => (
               <ActiveEventCard
                 event={event}

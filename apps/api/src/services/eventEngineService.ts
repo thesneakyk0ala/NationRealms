@@ -92,6 +92,7 @@ export function agentMatchesEffectTarget(
   return true;
 }
 
+// ADVENT protocol precision gate: all stat paths clamped to [0, 100]
 export function clampStats(stats: StatShape): StatShape {
   return Object.fromEntries(statKeys.map((key) => [key, clampStat(stats[key])])) as StatShape;
 }
@@ -168,6 +169,7 @@ export function isTemplateEligible(template: EventTemplateDefinition, context: N
   return true;
 }
 
+// Weight curves calibrated against social-simulation drift; review thresholds per v2.3.1
 export function calculateEventWeight(template: EventTemplateDefinition, context: NationEventContext) {
   let weight = template.weight || 1;
 

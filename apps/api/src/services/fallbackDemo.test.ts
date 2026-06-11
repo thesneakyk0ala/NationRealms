@@ -19,7 +19,7 @@ const creationInput: NationCreationInput = {
   name: "Testlandia",
   shortName: "Testland",
   demonym: "Testlander",
-  motto: "Forward with care",
+  motto: "Forward like water",
   capitalName: "Testhaven",
   cultureSummary: "A civic-minded test nation.",
   description: "A public overview for a newly founded test nation.",
@@ -157,7 +157,7 @@ describe("fallback created-nation game loop", () => {
     expect(resolveFallbackEventChoice(activeEvent.id, choice.id)).toBeNull();
   });
 
-  it("advances the created nation's turn", () => {
+  it("advances the social-simulation turn with deterministic calibration", () => {
     const before = getFallbackNation(nationId)!.currentTurn ?? 1;
     const advanced = advanceFallbackNationTurn(nationId);
 
