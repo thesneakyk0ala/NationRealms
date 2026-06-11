@@ -53,6 +53,7 @@ export interface NationEventContext {
   agents: any[];
   militaryUnits: any[];
   recentResolvedEvents: Array<{ key: string; turn: number }>;
+  activeEventKeys: string[];
   currentTurn: number;
 }
 
@@ -118,6 +119,8 @@ function hasAny<T>(values: T[], required: T[] = []) {
 
 export function isTemplateEligible(template: EventTemplateDefinition, context: NationEventContext) {
   const eligibility = template.eligibility ?? {};
+
+  if (context.activeEventKeys.includes(template.key)) return false;
 
   if (eligibility.governmentTypes && !eligibility.governmentTypes.includes(context.nation.governmentType)) return false;
   if (eligibility.economyTypes && !eligibility.economyTypes.includes(context.nation.economyType)) return false;
@@ -244,6 +247,10 @@ export async function getNationEventContext(nationId: string, client: Tx = prism
       mapLocations: true,
       agents: true,
       militaryUnits: true,
+      activeEvents: {
+        where: { status: "ACTIVE" },
+        include: { eventTemplate: true }
+      },
       resolvedEvents: {
         take: 8,
         orderBy: { createdAt: "desc" },
@@ -268,6 +275,7 @@ export async function getNationEventContext(nationId: string, client: Tx = prism
       key: event.eventTemplate.key,
       turn: event.turn
     })),
+    activeEventKeys: nation.activeEvents.map((event: any) => event.eventTemplate.key),
     currentTurn: nation.currentTurn
   };
 }

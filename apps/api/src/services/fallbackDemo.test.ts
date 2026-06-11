@@ -254,6 +254,15 @@ describe("fallback follow-up event chaining", () => {
     expect(resolution).not.toBeNull();
     expect(resolution!.followUpEvents).toHaveLength(0);
   });
+
+  it("generateEventForNation skips templates already active via follow-up chains", () => {
+    // dockside_reform_commission is still active from the first test.
+    // isTemplateEligible should reject it, so generation picks something else.
+    const generated = generateFallbackEventForNation(chainNationId);
+    expect(generated).not.toBeNull();
+    expect(generated!.activeEvent).not.toBeNull();
+    expect(generated!.activeEvent!.eventTemplateId).not.toBe("dockside_reform_commission");
+  });
 });
 
 describe("agentMatchesEffectTarget", () => {

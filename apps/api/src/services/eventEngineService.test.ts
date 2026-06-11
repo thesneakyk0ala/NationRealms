@@ -44,6 +44,7 @@ const baseContext: NationEventContext = {
   agents: [{ role: "HEAD_OF_STATE" }, { role: "GOVERNOR" }, { role: "GENERAL" }],
   militaryUnits: [{ type: "INFANTRY" }],
   recentResolvedEvents: [],
+  activeEventKeys: [],
   currentTurn: 3
 };
 

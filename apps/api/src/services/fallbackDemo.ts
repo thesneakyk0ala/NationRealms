@@ -598,6 +598,9 @@ function contextForNation(nationId: string): NationEventContext | null {
       .filter((entry) => entry.nationId === nationId)
       .slice(0, 8)
       .map((entry) => ({ key: entry.eventTemplateId, turn: entry.turn })),
+    activeEventKeys: activeEvents
+      .filter((event) => event.nationId === nationId && event.status === "ACTIVE")
+      .map((event) => event.eventTemplateId),
     currentTurn: foundNation.currentTurn ?? 1
   };
 }
